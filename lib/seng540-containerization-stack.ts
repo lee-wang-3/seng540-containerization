@@ -1,10 +1,12 @@
 import { Construct } from 'constructs';
+import autoscaling = require('aws-cdk-lib/aws-autoscaling');
 import cdk = require('aws-cdk-lib');
 import ecs = require('aws-cdk-lib/aws-ecs');
 import ec2 = require('aws-cdk-lib/aws-ec2');
 import elbv2 = require('aws-cdk-lib/aws-elasticloadbalancingv2');
 import iam = require('aws-cdk-lib/aws-iam');
 import logs = require("aws-cdk-lib/aws-logs");
+import { readFileSync } from 'fs';
 
 
 export class Seng540ContainerizationStack extends cdk.Stack {
@@ -18,9 +20,13 @@ export class Seng540ContainerizationStack extends cdk.Stack {
     vpc: vpc,
     containerInsights: true,
    });
-  cluster.addCapacity('DefaultAutoScalingGroup', {
-    instanceType: ec2.InstanceType.of(ec2.InstanceClass.M3, ec2.InstanceSize.LARGE)
+
+  const asg = cluster.addCapacity('DefaultAutoScalingGroup', {
+    instanceType: ec2.InstanceType.of(ec2.InstanceClass.M3, ec2.InstanceSize.LARGE),
   });
+  asg.addUserData(readFileSync('./bin/user-data', 'utf8'));
+  asg.role.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'));
+  asg.role.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'));
 
   // Create Task Role
   const taskRole = new iam.Role(this, "TaskRole", {
