@@ -51,19 +51,7 @@ export class Seng540ContainerizationStack extends cdk.Stack {
   const taskDefinition = new ecs.Ec2TaskDefinition(this, 'TaskDefinition', {
     taskRole: taskRole,
     executionRole: executionRole,
-  //   volumes: [{
-  //     name: 'nextjsVolume',
-  //     host: {
-  //       sourcePath: '../../src/frontend/nextjs'
-  //     }
-  //   },
-  //   {
-  //     name: 'storybookVolume',
-  //     host: {
-  //       sourcePath: '../../src/frontend/storybook'
-  //     }
-  //   },
-  // ],
+
   });
   taskDefinition.obtainExecutionRole()
 
@@ -75,6 +63,7 @@ export class Seng540ContainerizationStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_WEEK,
     }),
     memoryReservationMiB: 256,
+    essential: false,
   });
   nextjs_container.addPortMappings({
     containerPort: 3000,
@@ -86,11 +75,6 @@ export class Seng540ContainerizationStack extends cdk.Stack {
     hostPort: 9229,
     protocol: ecs.Protocol.TCP
   });
-  // nextjs_container.addMountPoints({
-  //   containerPath: '/app',
-  //   sourceVolume: 'nextjsVolume',
-  //   readOnly: false,
-  // });
 
   const storybook_container = taskDefinition.addContainer('Storybook', {
     image: ecs.ContainerImage.fromRegistry("471717104567.dkr.ecr.us-east-1.amazonaws.com/seng540-containerization-storybook:latest"),
@@ -99,17 +83,13 @@ export class Seng540ContainerizationStack extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_WEEK
     }),
     memoryReservationMiB: 512,
+    essential: true,
   });
   storybook_container.addPortMappings({
     containerPort: 6006,
-    hostPort: 80,
+    hostPort: 6006,
     protocol: ecs.Protocol.TCP
   });
-  // storybook_container.addMountPoints({
-  //   containerPath: '/app',
-  //   sourceVolume: 'storybookVolume',
-  //   readOnly: false,
-  // });
 
   // Create Service
   const service = new ecs.Ec2Service(this, "Service", {
@@ -125,12 +105,12 @@ export class Seng540ContainerizationStack extends cdk.Stack {
     internetFacing: true,
   });
   lb.connections.allowToAnyIpv4(ec2.Port.allTcp(), "All Out")
-  lb.connections.allowFromAnyIpv4(ec2.Port.allTcp(), "All In")
-  const listener = lb.addListener('PublicListener', { port: 6006, protocol: elbv2.ApplicationProtocol.HTTP, open: true });
+  lb.connections.allowFromAnyIpv4(ec2.Port.tcp(80), "In Allowed For Port 80")
+  const listener = lb.addListener('PublicListener', { port: 80, protocol: elbv2.ApplicationProtocol.HTTP, open: true });
 
   // Attach ALB to ECS Service
   listener.addTargets('ECS', {
-    port: 80,
+    port: 6006,
     protocol: elbv2.ApplicationProtocol.HTTP,
     targets: [service.loadBalancerTarget({
       containerName: 'Storybook',
